@@ -300,8 +300,6 @@ Keep <http://localhost:3000/api/debug/sessions> open in a second tab (press F5 t
 
 ## Known limitations
 
-- **No authentication.** Anyone who can reach the server can stream, list `sessionId`s, and inject into any tab.
-  Fine for a local dev tool, not for a public deployment.
 - **Single process, in-memory state.** Sessions and rate-limit buckets live in one Node process and are lost
   on restart. Restarting disconnects every stream (browsers reconnect with new sessions). Two instances behind
   a load balancer would not see each other's sessions.
