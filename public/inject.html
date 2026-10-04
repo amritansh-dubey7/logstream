@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LogStream - Injection Portal</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Standalone log injection portal (bonus B3).
+       Sends POST /api/inject {message, target}. The line shows up in the target tab's live
+       terminal as a cyan [CUSTOM] row. Target: a sessionId, a clientId (every session with that
+       name), or "all". The sessions list is loaded once and on demand (button), never polled. -->
+  <main class="app">
+
+    <header class="app-header">
+      <h1 class="app-title">Injection Portal</h1>
+      <p class="app-subtitle"><a href="/">Back to dashboard</a></p>
+    </header>
+
+    <section class="panel portal" aria-label="Inject a log line">
+      <div class="field">
+        <label for="target">Target (sessionId, clientId, or all)</label>
+        <input id="target" type="text" maxlength="64" placeholder="all" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="field">
+        <label for="message">Message</label>
+        <input id="message" type="text" maxlength="200" placeholder="Type a message and press Enter..." autocomplete="off" spellcheck="false">
+      </div>
+      <div class="button-row">
+        <button id="sendBtn" class="btn btn-secondary" type="button">[ Send ]</button>
+        <button id="allBtn" class="btn" type="button" title="Fill the target with all">[ Target: all ]</button>
+      </div>
+      <p id="result" class="inject-status" role="status">Pick a target, type a message, send.</p>
+    </section>
+
+    <section class="panel" aria-label="Active sessions">
+      <div class="sessions-head">
+        <h2 class="section-title">Active sessions</h2>
+        <button id="refreshBtn" class="btn btn-secondary" type="button">[ Refresh ]</button>
+      </div>
+      <p id="sessionsNote" class="inject-hint" role="status">Loading...</p>
+      <ul id="sessions" class="sessions"></ul>
+    </section>
+
+  </main>
+
+  <script>
+    'use strict';
+
+    // ---- Elements ------------------------------------------------------------
+    const targetEl = document.getElementById('target');
+    const messageEl = document.getElementById('message');
+    const sendBtn = document.getElementById('sendBtn');
+    const allBtn = document.getElementById('allBtn');
+    const resultEl = document.getElementById('result');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const sessionsEl = document.getElementById('sessions');
+    const sessionsNoteEl = document.getElementById('sessionsNote');
+
+    let inFlight = false; // one inject request at a time
+
+    // ---- Send ---------------------------------------------------------------
+    function describeFailure(status, body, retryAfterHeader) {
+      const serverMessage = body && typeof body.error === 'string' ? body.error : '';
+      if (status === 429) {
+        const seconds = Number(retryAfterHeader) || (body && body.retryAfterSeconds) || 10;
+        return 'Too many injections. Try again in ' + seconds + 's.';
+      }
+      if (status === 404) return 'No such target: no active session matches that sessionId or name.';
+      if (status === 400) return 'Rejected: ' + (serverMessage || 'invalid request') + '.';
+      return 'Injection failed (HTTP ' + status + ').';
+    }
+
+    async function send() {
+      if (inFlight) return;
+
+      const target = targetEl.value.trim();
+      const message = messageEl.value.trim();
+      if (!target) { resultEl.textContent = 'Enter a target (a sessionId, a name, or all).'; targetEl.focus(); return; }
+      if (!message) { resultEl.textContent = 'Type a message first.'; messageEl.focus(); return; }
+
+      inFlight = true;
+      sendBtn.disabled = true;
+      resultEl.textContent = 'Sending...';
+      try {
+        const response = await fetch('/api/inject', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: message, target: target }),
+        });
+        const body = await response.json().catch(function () { return null; });
+        if (response.ok) {
+          const n = body && typeof body.delivered === 'number' ? body.delivered : 0;
+          resultEl.textContent = 'Delivered to ' + n + (n === 1 ? ' session.' : ' sessions.');
+          if (messageEl.value.trim() === message) messageEl.value = '';
+        } else {
+          resultEl.textContent = describeFailure(response.status, body, response.headers.get('Retry-After'));
+        }
+      } catch (_err) {
+        resultEl.textContent = 'Could not reach the server.';
+      } finally {
+        inFlight = false;
+        sendBtn.disabled = false;
+      }
+    }
+
+    // ---- Sessions list (one fetch on load + on demand; no polling) ----------------
+    function fillTarget(value) {
+      targetEl.value = value;
+      messageEl.focus();
+    }
+
+    function makeFillButton(label, value, title) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'btn btn-small';
+      button.textContent = label;
+      button.title = title;
+      button.addEventListener('click', function () { fillTarget(value); });
+      return button;
+    }
+
+    function renderSessions(sessions) {
+      sessionsEl.textContent = ''; // clear (no HTML parsing)
+      sessions.forEach(function (s) {
+        const item = document.createElement('li');
+        item.className = 'session-row';
+
+        const name = document.createElement('span');
+        name.className = 'session-name';
+        name.textContent = s.clientId;
+
+        const id = document.createElement('code');
+        id.className = 'session-id';
+        id.textContent = s.sessionId;
+
+        item.appendChild(name);
+        item.appendChild(id);
+        item.appendChild(makeFillButton('[ use session ]', s.sessionId, 'Target only this session'));
+        item.appendChild(makeFillButton('[ use name ]', s.clientId, 'Target every session with this name'));
+        sessionsEl.appendChild(item);
+      });
+    }
+
+    async function loadSessions() {
+      refreshBtn.disabled = true;
+      sessionsNoteEl.textContent = 'Loading...';
+      try {
+        const response = await fetch('/api/debug/sessions', { cache: 'no-store' });
+        const data = await response.json();
+        const sessions = Array.isArray(data.sessions) ? data.sessions : [];
+        renderSessions(sessions);
+        sessionsNoteEl.textContent = sessions.length === 0
+          ? 'No active sessions. Open the dashboard and click Start.'
+          : sessions.length + ' active. Use a button to fill the target.';
+      } catch (_err) {
+        renderSessions([]);
+        sessionsNoteEl.textContent = 'Could not load sessions.';
+      } finally {
+        refreshBtn.disabled = false;
+      }
+    }
+
+    // ---- Wiring ----------------------------------------------------------------
+    sendBtn.addEventListener('click', send);
+    allBtn.addEventListener('click', function () { fillTarget('all'); });
+    refreshBtn.addEventListener('click', loadSessions);
+    [targetEl, messageEl].forEach(function (el) {
+      el.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); send(); }
+      });
+    });
+
+    loadSessions();
+  </script>
+</body>
+</html>

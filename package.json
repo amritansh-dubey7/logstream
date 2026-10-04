@@ -1,0 +1,18 @@
+{
+  "name": "logstream",
+  "version": "1.0.0",
+  "description": "LogStream - a live developer observability dashboard streaming mock logs over Server-Sent Events.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "bash test/smoke.sh",
+    "test:hardening": "bash test/hardening.sh"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}

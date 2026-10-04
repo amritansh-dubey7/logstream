@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LogStream</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="app">
+
+    <header class="app-header">
+      <h1 class="app-title">LogStream</h1>
+      <p class="app-subtitle">Live developer log inspector</p>
+    </header>
+
+    <!-- CONTROL PANEL
+         Start/Stop are wired to EventSource in app.js (Phase 5).
+         Initial state per spec: Start enabled, Stop disabled. -->
+    <section class="panel controls" aria-label="Stream controls">
+      <div class="field">
+        <label for="clientId">Name / Client ID</label>
+        <input
+          id="clientId"
+          name="clientId"
+          type="text"
+          maxlength="30"
+          placeholder="anonymous"
+          autocomplete="off"
+          spellcheck="false"
+        >
+      </div>
+      <div class="button-row">
+        <button id="startBtn" class="btn btn-start" type="button">[ Start Stream ]</button>
+        <button id="stopBtn" class="btn btn-stop" type="button" disabled>[ Stop Stream ]</button>
+      </div>
+    </section>
+
+    <!-- TOOLBAR: bonus features B1 (filter) and B2 (save), wired in app.js (Phase 7).
+         The filter works at any time (streaming, stopped, empty buffer).
+         Save starts disabled and is enabled by app.js whenever the terminal has rows. -->
+    <section class="panel toolbar" aria-label="Terminal tools">
+      <div class="field field-inline">
+        <label for="levelFilter">Filter</label>
+        <select id="levelFilter" autocomplete="off" aria-controls="terminal">
+          <option value="ALL" selected>All Logs</option>
+          <option value="INFO">Info Only</option>
+          <option value="WARN">Warnings Only</option>
+          <option value="ERROR">Errors Only</option>
+        </select>
+      </div>
+      <button id="saveBtn" class="btn btn-secondary" type="button" disabled
+              title="Download the lines currently on screen as logs.txt">[ Save Session Output ]</button>
+      <!-- Status line lives OUTSIDE the terminal so the terminal itself stays blank.
+           Phase 5 writes connection / [SYSTEM] messages here. -->
+      <p id="status" class="status" role="status">Idle</p>
+    </section>
+
+    <!-- TERMINAL
+         Must be completely empty on load: no child elements, no text.
+         app.js appends one element per log line using the .log-line + .log-<level> classes. -->
+    <div id="terminal" class="terminal" role="log" aria-live="polite" aria-label="Log output" tabindex="0"></div>
+
+    <!-- INJECT AREA (bonus B3, wired in app.js in Phase 8).
+         Collapsible. Sends to MY session only; Send is enabled while a stream is running.
+         The line appears through the live SSE stream (event "injected"), not by local append,
+         so there is never a duplicate. Other targets (a name, a sessionId, "all") are in inject.html. -->
+    <details id="injectPanel" class="panel inject">
+      <summary>Inject custom log</summary>
+      <div class="inject-body">
+        <label for="injectMessage" class="visually-hidden">Message to inject into my live stream</label>
+        <input id="injectMessage" type="text" maxlength="200" placeholder="Type a message and press Enter..." autocomplete="off" spellcheck="false" aria-describedby="injectStatus" disabled>
+        <button id="injectSend" class="btn btn-secondary" type="button" disabled>[ Send ]</button>
+      </div>
+      <p id="injectStatus" class="inject-status" role="status">Start a stream to enable injection.</p>
+      <p class="inject-hint">Goes to <strong>your</strong> session. To target another tab or everyone, use the
+        <a href="inject.html" target="_blank" rel="noopener">injection portal</a>.</p>
+    </details>
+
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
