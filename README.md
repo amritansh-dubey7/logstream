@@ -4,6 +4,9 @@ A single-page **developer observability dashboard** that behaves like a live ter
 The Node.js backend pushes one mock log line every 500 ms to each connected browser over
 **Server-Sent Events (SSE)**. No polling, no database, one dependency (`express`), no build step.
 
+🌐 Live demo	https://logstream-msmb.onrender.com
+🎥 Video demo	https://drive.google.com/file/d/1NT7s2j9bxQCUb5BBxXJwrSBoPlaRPVBG/view?usp=drive_link
+
 ## Features
 
 **Core**
